@@ -41,12 +41,26 @@ export default function App() {
   useEffect(() => {
     const handleAddUserNode = (e) => {
       const data = e.detail;
+      // Calcular las dos ideologías más cercanas para generar conexiones
+      const distances = IDEOLOGIES.map(id => {
+        const dist = Math.sqrt(
+          Math.pow(id.coords.x - data.coordenadas.x, 2) +
+          Math.pow(id.coords.y - data.coordenadas.y, 2) +
+          Math.pow(id.coords.z - data.coordenadas.z, 2)
+        );
+        return { id: id.id, dist };
+      });
+      distances.sort((a, b) => a.dist - b.dist);
+      // Tomamos las 2 más cercanas (asegurándonos de que haya al menos 2)
+      const closestConnections = distances.slice(0, 2).map(d => d.id);
+
       setUserNodeData({
         id: 'user-node',
         name: data.nombre_ideologia,
         description: data.descripcion_personalizada,
         coords: data.coordenadas,
-        color: '#ffffff' // Color brillante/distintivo para el usuario
+        color: data.color_hex || '#ffffff', // Color asignado por la IA o fallback
+        connections: closestConnections
       });
     };
     window.addEventListener('addUserNode', handleAddUserNode);

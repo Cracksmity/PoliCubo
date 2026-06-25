@@ -115,9 +115,13 @@ app.post('/api/chat', async (req, res) => {
               descripcion_personalizada: {
                 type: ["string", "null"],
                 description: "Descripción breve y personalizada del perfil si status es 'finalizado'."
+              },
+              color_hex: {
+                type: ["string", "null"],
+                description: "Color hexadecimal sugerido para representar visualmente la ideología del usuario (ej. #ff0044) si status es 'finalizado'."
               }
             },
-            required: ["status", "siguiente_pregunta", "opciones", "razonamiento_coordenadas", "coordenadas", "nombre_ideologia", "descripcion_personalizada"],
+            required: ["status", "siguiente_pregunta", "opciones", "razonamiento_coordenadas", "coordenadas", "nombre_ideologia", "descripcion_personalizada", "color_hex"],
             additionalProperties: false
           }
         }

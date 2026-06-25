@@ -204,7 +204,7 @@ export default function PoliticalCube({
         {userNode && (
           <Line
             points={[[0, 0, 0], [userNode.coords.x, userNode.coords.y, userNode.coords.z]]}
-            color="#22d3ee"
+            color={userNode.color}
             lineWidth={3}
             transparent
             opacity={0.8}
