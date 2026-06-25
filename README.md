@@ -22,9 +22,11 @@ Tradicionalmente, los tests políticos son cuestionarios estáticos y bidimensio
 
 ## ✨ Características Principales
 - **Visualización 3D Interactiva**: Navega por el espectro político en un entorno tridimensional fluido.
-- **Agente Conversacional con IA**: Realiza el test interactuando con un bot inteligente (potenciado por OpenAI) que analiza tus posturas políticas.
-- **Resultados Dinámicos**: Ubicación precisa en los ejes políticos (Económico, Social, Autoritarismo/Libertarismo).
-- **Interfaz Moderna**: Diseño minimalista, responsivo y fácil de usar.
+- **Agente Conversacional Inteligente**: Realiza el test interactuando con un bot inteligente (potenciado por OpenAI) que mapea tus ideas en tiempo real. 
+  - **Modo Guiado**: Responde a situaciones cotidianas concretas con opciones rápidas. Ideal para principiantes.
+  - **Modo Libre**: Argumenta de forma abierta y profunda tus posturas políticas. Para expertos.
+- **Resultados Dinámicos**: Ubicación precisa en los ejes políticos (Económico, Social, Pluralidad).
+- **Interfaz Moderna**: Diseño minimalista, responsivo, *glassmorphism* y animaciones fluidas.
 
 ## 🛠 Tecnologías Utilizadas
 

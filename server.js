@@ -13,7 +13,7 @@ const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
 });
 
-const SYSTEM_PROMPT = `Actúas como un psicómetra político y filósofo experto. Tu objetivo es entrevistar al usuario con preguntas abiertas, cortas y enfocadas (una a la vez) para mapear su ideología en PoliCubo, un espacio interactivo 3D con tres ejes que van de -1.0 a 1.0:
+const FREE_SYSTEM_PROMPT = `Actúas como un psicómetra político y filósofo experto. Tu objetivo es entrevistar al usuario con preguntas abiertas, cortas y enfocadas (una a la vez) para mapear su ideología en PoliCubo, un espacio interactivo 3D con tres ejes que van de -1.0 a 1.0:
 - Eje X: Económico (Izquierda/Comunismo [-1.0] | Centro/Distributismo [0.0] | Derecha/Libre Mercado [1.0])
 - Eje Y: Social/Político (Libertario/Anarquía [-1.0] | Autoritario/Estatal [1.0])
 - Eje Z: Pluralidad/Profundidad (Monismo/Exclusión [-1.0] | Pluralismo/Inclusión [1.0])
@@ -24,13 +24,27 @@ Reglas Importantes:
 1. Durante la entrevista (máximo 5 preguntas), explora activamente los 3 ejes. Si el usuario se enfoca en un solo eje, cambia el tema de tu siguiente pregunta hacia los otros ejes.
 2. MODO MANIFIESTO: Si el usuario envía desde el principio un texto muy largo y detallado sobre sus posturas políticas, NO hagas preguntas. Extrae sus coordenadas directamente de su texto y responde inmediatamente con status: 'finalizado'. Tu respuesta SIEMPRE será un objeto JSON válido con los campos requeridos.`;
 
+const GUIDED_SYSTEM_PROMPT = `Actúas como un psicómetra amigable e intuitivo. Tu objetivo es entrevistar al usuario (máximo 5 preguntas cortas, una a la vez) para mapear su ideología en PoliCubo. 
+Ejes a mapear (de -1.0 a 1.0):
+- Eje X: Económico (Control estatal [-1.0] | Libre Mercado [1.0])
+- Eje Y: Social/Político (Libertades individuales [-1.0] | Autoridad estatal [1.0])
+- Eje Z: Pluralidad (Exclusión/Nacionalismo [-1.0] | Inclusión/Globalismo [1.0])
+
+Reglas Importantes para Modo Guiado:
+1. NUNCA uses jerga política (evita palabras como comunismo, distributismo, monismo, etc. durante las preguntas).
+2. Usa escenarios de la vida real o cotidianos (ej. "Imagina que sube el precio del pan...", "Si el gobierno quiere construir un hospital...").
+3. DEBES sugerir entre 2 y 4 opciones de respuesta cortas para que el usuario pueda elegir. Estas opciones deben reflejar posturas opuestas de forma sencilla. Rellena el arreglo "opciones" en el JSON con estas sugerencias.
+4. Mapeo final: Sé preciso. Si el usuario es apático, clasifícalo como 'Tibio / Apático' en 0,0,0 y repréndelo sutilmente citando Apocalipsis 3:16.`;
+
 app.post('/api/chat', async (req, res) => {
   try {
-    const { messages } = req.body;
+    const { messages, mode } = req.body;
 
     if (!messages || !Array.isArray(messages)) {
       return res.status(400).json({ error: 'Messages array is required' });
     }
+
+    const currentPrompt = mode === 'guided' ? GUIDED_SYSTEM_PROMPT : FREE_SYSTEM_PROMPT;
 
     // Adaptar mensajes de frontend (role: 'user' | 'ai') a formato de OpenAI (role: 'user' | 'assistant')
     // y truncar textos muy largos
@@ -42,7 +56,7 @@ app.post('/api/chat', async (req, res) => {
     const userMessageCount = formattedMessages.filter(m => m.role === 'user').length;
 
     const conversation = [
-      { role: 'system', content: SYSTEM_PROMPT },
+      { role: 'system', content: currentPrompt },
       ...formattedMessages
     ];
 
@@ -73,6 +87,11 @@ app.post('/api/chat', async (req, res) => {
                 type: ["string", "null"],
                 description: "La siguiente pregunta a hacer al usuario si status es 'en_progreso'."
               },
+              opciones: {
+                type: ["array", "null"],
+                items: { type: "string" },
+                description: "Sugerencias de respuesta corta para el usuario (solo para modo guiado)."
+              },
               coordenadas: {
                 type: ["object", "null"],
                 properties: {
@@ -92,7 +111,7 @@ app.post('/api/chat', async (req, res) => {
                 description: "Descripción breve y personalizada del perfil si status es 'finalizado'."
               }
             },
-            required: ["status", "siguiente_pregunta", "coordenadas", "nombre_ideologia", "descripcion_personalizada"],
+            required: ["status", "siguiente_pregunta", "opciones", "coordenadas", "nombre_ideologia", "descripcion_personalizada"],
             additionalProperties: false
           }
         }
