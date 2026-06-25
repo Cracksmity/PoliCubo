@@ -21,10 +21,11 @@ const FREE_SYSTEM_PROMPT = `Actúas como un psicómetra político y filósofo ex
 Pauta de calibración: Sé capaz de mapear combinaciones ideológicas complejas con precisión a lo largo de los ejes, sin forzar a los usuarios a cuadrantes tradicionales. Si detectas que el usuario es apático, no toma postura y le da igual la política, deberás devolver coordenadas cercanas a 0,0,0, clasificar su ideología como 'Tibio / Apático', y en la descripción reprenderlo de forma sutil citando Apocalipsis 3:16 ('por cuanto eres tibio...').
 
 Reglas Importantes:
-1. Durante la entrevista (máximo 5 preguntas), explora activamente los 3 ejes. Si el usuario se enfoca en un solo eje, cambia el tema de tu siguiente pregunta hacia los otros ejes.
-2. MODO MANIFIESTO: Si el usuario envía desde el principio un texto muy largo y detallado sobre sus posturas políticas, NO hagas preguntas. Extrae sus coordenadas directamente de su texto y responde inmediatamente con status: 'finalizado'. Tu respuesta SIEMPRE será un objeto JSON válido con los campos requeridos.`;
+1. Durante la entrevista (máximo 12 preguntas), explora activamente los 3 ejes. Si el usuario se enfoca en un solo eje, cambia el tema de tu siguiente pregunta hacia los otros ejes.
+2. Calcula las coordenadas usando precisión decimal (ej. 0.3, -0.6, 0.85). Usa los extremos absolutos (1.0 o -1.0) SOLO si el usuario demuestra posturas radicales o extremistas fanáticas. Para la mayoría de las personas, usa valores fraccionarios y moderados que reflejen sus matices.
+3. MODO MANIFIESTO: Si el usuario envía desde el principio un texto muy largo y detallado sobre sus posturas políticas, NO hagas preguntas. Extrae sus coordenadas directamente de su texto y responde inmediatamente con status: 'finalizado'. Tu respuesta SIEMPRE será un objeto JSON válido con los campos requeridos.`;
 
-const GUIDED_SYSTEM_PROMPT = `Actúas como un psicómetra amigable e intuitivo. Tu objetivo es entrevistar al usuario (máximo 5 preguntas cortas, una a la vez) para mapear su ideología en PoliCubo. 
+const GUIDED_SYSTEM_PROMPT = `Actúas como un psicómetra amigable e intuitivo. Tu objetivo es entrevistar al usuario (máximo 12 preguntas cortas, una a la vez) para mapear su ideología en PoliCubo. 
 Ejes a mapear (de -1.0 a 1.0):
 - Eje X: Económico (Control estatal [-1.0] | Libre Mercado [1.0])
 - Eje Y: Social/Político (Libertades individuales [-1.0] | Autoridad estatal [1.0])
@@ -34,7 +35,7 @@ Reglas Importantes para Modo Guiado:
 1. NUNCA uses jerga política (evita palabras como comunismo, distributismo, monismo, etc. durante las preguntas).
 2. Usa escenarios de la vida real o cotidianos (ej. "Imagina que sube el precio del pan...", "Si el gobierno quiere construir un hospital...").
 3. DEBES sugerir entre 2 y 4 opciones de respuesta cortas para que el usuario pueda elegir. Estas opciones deben reflejar posturas opuestas de forma sencilla. Rellena el arreglo "opciones" en el JSON con estas sugerencias.
-4. Mapeo final: Sé preciso. Si el usuario es apático, clasifícalo como 'Tibio / Apático' en 0,0,0 y repréndelo sutilmente citando Apocalipsis 3:16.`;
+4. Mapeo final: Sé preciso. Calcula las coordenadas usando precisión decimal (ej. 0.3, -0.6, 0.85). Usa los extremos absolutos (1.0 o -1.0) SOLO si el usuario demuestra posturas radicales absolutas. Si el usuario es apático, clasifícalo como 'Tibio / Apático' en 0,0,0 y repréndelo sutilmente citando Apocalipsis 3:16.`;
 
 app.post('/api/chat', async (req, res) => {
   try {
@@ -60,15 +61,16 @@ app.post('/api/chat', async (req, res) => {
       ...formattedMessages
     ];
 
-    if (userMessageCount >= 5) {
+    if (userMessageCount >= 12) {
       conversation.push({
         role: 'system',
-        content: "El usuario ha respondido la 5ta pregunta. DEBES finalizar el test ahora mismo obligatoriamente. Genera status: 'finalizado' y da las coordenadas y descripción finales."
+        content: "El usuario ha respondido la 12va pregunta. DEBES finalizar el test ahora mismo obligatoriamente. Genera status: 'finalizado' y da las coordenadas y descripción finales."
       });
     }
 
     const completion = await openai.chat.completions.create({
       model: "gpt-4o-mini",
+      temperature: 0.3,
       messages: conversation,
       response_format: {
         type: "json_schema",
@@ -92,6 +94,10 @@ app.post('/api/chat', async (req, res) => {
                 items: { type: "string" },
                 description: "Sugerencias de respuesta corta para el usuario (solo para modo guiado)."
               },
+              razonamiento_coordenadas: {
+                type: ["string", "null"],
+                description: "Explica brevemente por qué has elegido esos valores exactos y por qué no son más extremos, basándote en los matices del usuario."
+              },
               coordenadas: {
                 type: ["object", "null"],
                 properties: {
@@ -111,7 +117,7 @@ app.post('/api/chat', async (req, res) => {
                 description: "Descripción breve y personalizada del perfil si status es 'finalizado'."
               }
             },
-            required: ["status", "siguiente_pregunta", "opciones", "coordenadas", "nombre_ideologia", "descripcion_personalizada"],
+            required: ["status", "siguiente_pregunta", "opciones", "razonamiento_coordenadas", "coordenadas", "nombre_ideologia", "descripcion_personalizada"],
             additionalProperties: false
           }
         }
