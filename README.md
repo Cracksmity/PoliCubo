@@ -1,3 +1,10 @@
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset=".github/logo-dark.svg">
+    <img src=".github/logo.svg" alt="PoliCubo" width="120">
+  </picture>
+</p>
+
 # PoliticaCubo 3D 🧊
 [![Deploy Status](https://img.shields.io/badge/Deploy-Live-success?style=for-the-badge&logo=vercel)](https://policubo.space/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg?style=for-the-badge)](https://opensource.org/licenses/MIT)
