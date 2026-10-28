@@ -16,5 +16,10 @@ export default defineConfig({
     proxy: {
       '/api': 'http://localhost:3001'
     }
-  }
+  },
+  build: {
+    // La escena 3D (Three.js) va en su propio chunk de ~1,2 MB que se carga en diferido;
+    // la interfaz inicial pesa ~250 KB
+    chunkSizeWarningLimit: 1300,
+  },
 });

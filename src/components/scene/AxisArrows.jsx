@@ -12,6 +12,10 @@
 import { memo, useMemo } from 'react';
 import { Html } from '@react-three/drei';
 import * as THREE from 'three';
+import { useStore } from '../../store';
+
+// En las vistas planas, el eje que apunta a la cámara no aporta y sus etiquetas tapan el centro
+const DEPTH_AXIS = { xy: 'z', xz: 'y', yz: 'x' };
 
 /** Cabeza de flecha como cono pequeño */
 function ArrowHead({ position, rotation, color }) {
@@ -39,8 +43,11 @@ function AxisLine({ start, end, color }) {
   );
 }
 
-/** Etiqueta de extremo de eje */
-function AxisLabel({ position, text, color, align = 'center' }) {
+/**
+ * Etiqueta de extremo de eje, con el nombre del eje como subtítulo.
+ * (Antes el nombre iba en el centro del cubo y se montaba encima de los nodos.)
+ */
+function AxisLabel({ position, text, caption, color }) {
   return (
     <Html
       position={position}
@@ -69,28 +76,19 @@ function AxisLabel({ position, text, color, align = 'center' }) {
         }}
       >
         {text}
-      </div>
-    </Html>
-  );
-}
-
-/** Etiqueta central del eje (nombre del eje) */
-function AxisCenterLabel({ position, text, color }) {
-  return (
-    <Html position={position} center zIndexRange={[10, 0]} style={{ pointerEvents: 'none', userSelect: 'none' }}>
-      <div
-        style={{
-          fontSize: '9px',
-          fontWeight: 700,
-          color: color,
-          fontFamily: "'Inter', sans-serif",
-          letterSpacing: '0.1em',
-          textTransform: 'uppercase',
-          opacity: 0.6,
-          whiteSpace: 'nowrap',
-        }}
-      >
-        {text}
+        <div
+          style={{
+            fontSize: '8px',
+            fontWeight: 700,
+            fontFamily: "'Inter', sans-serif",
+            letterSpacing: '0.1em',
+            textTransform: 'uppercase',
+            opacity: 0.65,
+            marginTop: '1px',
+          }}
+        >
+          {caption}
+        </div>
       </div>
     </Html>
   );
@@ -99,6 +97,7 @@ function AxisCenterLabel({ position, text, color }) {
 function AxisArrows() {
   const AXIS_LENGTH = 1.0; // radio desde el centro al borde del cubo
   const LABEL_OFFSET = 1.22; // offset para etiquetas de extremos
+  const hidden = DEPTH_AXIS[useStore((s) => s.activeView)];
 
   return (
     <group>
@@ -119,9 +118,8 @@ function AxisArrows() {
       />
 
       {/* Etiquetas extremos X */}
-      <AxisLabel position={[LABEL_OFFSET, 0, 0]} text="Derecha →" color="#f43f5e" />
-      <AxisLabel position={[-LABEL_OFFSET, 0, 0]} text="← Izquierda" color="#f43f5e" />
-      <AxisCenterLabel position={[0, 0.08, 0]} text="Económico" color="#f43f5e" />
+      {hidden !== 'x' && <AxisLabel position={[LABEL_OFFSET, 0, 0]} text="Derecha →" caption="Económico" color="#f43f5e" />}
+      {hidden !== 'x' && <AxisLabel position={[-LABEL_OFFSET, 0, 0]} text="← Izquierda" caption="Económico" color="#f43f5e" />}
 
       {/* ── EJE Y: Social (Libertario ↔ Autoritario) ── */}
       <AxisLine start={[0, -AXIS_LENGTH, 0]} end={[0, AXIS_LENGTH, 0]} color="#22d3ee" />
@@ -133,9 +131,8 @@ function AxisArrows() {
         color="#22d3ee"
       />
 
-      <AxisLabel position={[0, LABEL_OFFSET, 0]} text="↑ Autoritario" color="#22d3ee" />
-      <AxisLabel position={[0, -LABEL_OFFSET, 0]} text="↓ Libertario" color="#22d3ee" />
-      <AxisCenterLabel position={[0.08, 0, 0]} text="Social/Político" color="#22d3ee" />
+      {hidden !== 'y' && <AxisLabel position={[0, LABEL_OFFSET, 0]} text="↑ Autoritario" caption="Social / Político" color="#22d3ee" />}
+      {hidden !== 'y' && <AxisLabel position={[0, -LABEL_OFFSET, 0]} text="↓ Libertario" caption="Social / Político" color="#22d3ee" />}
 
       {/* ── EJE Z: Pluralidad (Monismo ↔ Pluralismo) ── */}
       <AxisLine start={[0, 0, -AXIS_LENGTH]} end={[0, 0, AXIS_LENGTH]} color="#a78bfa" />
@@ -151,9 +148,8 @@ function AxisArrows() {
         color="#a78bfa"
       />
 
-      <AxisLabel position={[0, 0, LABEL_OFFSET]} text="Pluralismo / Inclusión →" color="#a78bfa" />
-      <AxisLabel position={[0, 0, -LABEL_OFFSET]} text="← Monismo / Exclusión" color="#a78bfa" />
-      <AxisCenterLabel position={[0.08, 0, 0.5]} text="Pluralidad" color="#a78bfa" />
+      {hidden !== 'z' && <AxisLabel position={[0, 0, LABEL_OFFSET]} text="Pluralismo / Inclusión →" caption="Pluralidad" color="#a78bfa" />}
+      {hidden !== 'z' && <AxisLabel position={[0, 0, -LABEL_OFFSET]} text="← Monismo / Exclusión" caption="Pluralidad" color="#a78bfa" />}
 
       {/* Punto central – origen */}
       <mesh position={[0, 0, 0]}>

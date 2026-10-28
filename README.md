@@ -28,12 +28,16 @@ Tradicionalmente, los tests políticos son cuestionarios estáticos y bidimensio
 - [Licencia](#-licencia)
 
 ## ✨ Características Principales
-- **Visualización 3D Interactiva**: Navega por el espectro político en un entorno tridimensional fluido.
-- **Agente Conversacional Inteligente**: Realiza el test interactuando con un bot inteligente (potenciado por OpenAI) que mapea tus ideas en tiempo real. 
-  - **Modo Guiado**: Responde a situaciones cotidianas concretas con opciones rápidas. Ideal para principiantes.
-  - **Modo Libre**: Argumenta de forma abierta y profunda tus posturas políticas. Para expertos.
-- **Resultados Dinámicos**: Ubicación precisa en los ejes políticos (Económico, Social, Pluralidad).
-- **Interfaz Moderna**: Diseño minimalista, responsivo, *glassmorphism* y animaciones fluidas.
+- **Visualización 3D Interactiva**: Navega por el espectro político en un entorno tridimensional fluido, con vistas predefinidas (3D, la brújula clásica X–Y, X–Z e Y–Z).
+- **50 corrientes de referencia** agrupadas en 9 familias (el color indica la familia), con ficha propia: descripción, referentes, corrientes más cercanas y relacionadas.
+- **Exploración**: buscador sin tildes, filtros por familia y por rango en los tres ejes.
+- **Tres modos de test**, y en todos tu punto se mueve por el cubo mientras respondes:
+  - **Clásico**: 24 afirmaciones con escala de acuerdo. Rápido, gratis y sin IA.
+  - **Guiado** (IA): situaciones cotidianas con opciones rápidas. Ideal para principiantes.
+  - **Libre** (IA): argumenta de forma abierta tus posturas, o pega un manifiesto. Para expertos.
+- **Resultado explicable**: la IA puntúa cada respuesta por eje con una confianza y la app calcula la media ponderada, así que puedes ver exactamente cómo se obtuvo tu posición. Incluye las corrientes más cercanas con su % de afinidad.
+- **Compartir y comparar**: enlace con tus coordenadas (quien lo abre ve tu punto en su cubo), tarjeta en imagen descargable e historial de resultados guardado en tu navegador.
+- **Interfaz Moderna y accesible**: responsiva (hoja inferior en móvil), *glassmorphism*, bloom, navegación con teclado y contraste AA.
 
 ## 🛠 Tecnologías Utilizadas
 
@@ -65,8 +69,15 @@ Sigue estos pasos para correr el proyecto en tu entorno local:
    Asegúrate de que tienes tu archivo `.env` en la raíz del proyecto configurado.
    ```env
    OPENAI_API_KEY=tu_clave_de_api_aqui
-   # Otras variables necesarias
+
+   # Opcionales
+   OPENAI_MODEL=gpt-6-luna        # modelo para los tests con IA
+   OPENAI_TEMPERATURE=            # vacío = la del modelo (algunos solo admiten la de por defecto)
+   RATE_LIMIT_MAX=40              # peticiones al test por IP cada 15 minutos
+   TRUST_PROXY=loopback           # de quién fiarse para X-Forwarded-For (nginx en la misma máquina)
+   PORT=3001
    ```
+   Sin `OPENAI_API_KEY` la app funciona igual: el test clásico no usa IA y los modos con IA responden 503.
 
 4. **Ejecutar el servidor de desarrollo**
    El proyecto utiliza `concurrently` para correr el frontend y el backend al mismo tiempo:

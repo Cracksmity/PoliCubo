@@ -1,73 +1,61 @@
 /**
  * TooltipOverlay.jsx
  * Tooltip HTML que se posiciona sobre el canvas al hacer hover en un nodo.
- * Se muestra en coordenadas de pantalla proyectadas desde Three.js.
- * `containerRef` permite a SceneController moverlo en cada frame.
+ * Es un resumen: la información completa está en la ficha (clic en el nodo).
+ * La escena lo reposiciona en cada frame a través de `tooltipElRef`.
  */
-import { labelX, labelY, labelZ } from '../data/ideologies';
+import { useStore } from '../store';
+import { useSceneNodes } from '../lib/nodes';
+import { tooltipElRef } from '../lib/refs';
+import ShapeIcon from './shared/ShapeIcon';
+import { AXES, AXIS_KEYS } from '../data/axes';
+import { FAMILIES } from '../data/families';
 
-export default function TooltipOverlay({ node, screenPos, containerRef }) {
-  if (!node || !screenPos) return null;
+const KIND_LABELS = {
+  user: 'Tu resultado',
+  compare: 'Comparación',
+};
 
-  const { name, coords, color, description } = node;
+export default function TooltipOverlay() {
+  const hoveredId = useStore((s) => s.hoveredId);
+  const hoverPos = useStore((s) => s.hoverPos);
+  const nodes = useSceneNodes();
+
+  const node = hoveredId && nodes.find((n) => n.id === hoveredId);
+  if (!node || !hoverPos) return null;
+
+  const { name, coords, color } = node;
+  const kicker = KIND_LABELS[node.kind] || FAMILIES[node.family]?.label;
 
   return (
     <div
-      ref={containerRef}
+      ref={(el) => (tooltipElRef.current = el)}
       className="tooltip-overlay"
       role="tooltip"
-      style={{ left: screenPos.x, top: screenPos.y }}
+      style={{ left: hoverPos.x, top: hoverPos.y }}
     >
       <div className="tooltip-card">
-        {/* Indicador de color */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '10px' }}>
-          <div
-            style={{
-              width: '10px',
-              height: '10px',
-              borderRadius: '50%',
-              background: color,
-              boxShadow: `0 0 8px ${color}`,
-              flexShrink: 0,
-            }}
-          />
-          <div className="tooltip-name">{name}</div>
+        {/* Forma y color de la familia */}
+        <div className="tooltip-head">
+          <ShapeIcon shape={node.shape} color={color} size={14} className="tooltip-shape" />
+          <div>
+            {kicker && <div className="tooltip-kicker">{kicker}</div>}
+            <div className="tooltip-name">{name}</div>
+          </div>
         </div>
-
-        {/* Descripción breve */}
-        {description && (
-          <p
-            style={{
-              fontSize: '0.72rem',
-              color: 'var(--text-secondary)',
-              lineHeight: 1.5,
-              marginBottom: '12px',
-              borderBottom: '1px solid var(--border-glass)',
-              paddingBottom: '10px',
-            }}
-          >
-            {description}
-          </p>
-        )}
 
         {/* Coordenadas */}
         <div className="tooltip-coords">
-          <div className="tooltip-coord">
-            <span className="tooltip-axis-badge badge-x">X</span>
-            <span className="tooltip-coord-label">{labelX(coords.x)}</span>
-            <span className="tooltip-coord-value">{coords.x.toFixed(2)}</span>
-          </div>
-          <div className="tooltip-coord">
-            <span className="tooltip-axis-badge badge-y">Y</span>
-            <span className="tooltip-coord-label">{labelY(coords.y)}</span>
-            <span className="tooltip-coord-value">{coords.y.toFixed(2)}</span>
-          </div>
-          <div className="tooltip-coord">
-            <span className="tooltip-axis-badge badge-z">Z</span>
-            <span className="tooltip-coord-label">{labelZ(coords.z)}</span>
-            <span className="tooltip-coord-value">{coords.z.toFixed(2)}</span>
-          </div>
+          {AXIS_KEYS.map((k) => (
+            <div className="tooltip-coord" key={k}>
+              <span className={`tooltip-axis-badge badge-${k}`}>{k.toUpperCase()}</span>
+              <span className="tooltip-coord-label">{AXES[k].label(coords[k])}</span>
+              <span className="tooltip-coord-value">{coords[k].toFixed(2)}</span>
+            </div>
+          ))}
         </div>
+
+        <div className="tooltip-hint">Clic para ver la ficha</div>
       </div>
 
       {/* Flecha del tooltip */}
