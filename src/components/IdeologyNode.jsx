@@ -14,6 +14,9 @@ import { useFrame } from '@react-three/fiber';
 import { Text, Line } from '@react-three/drei';
 import * as THREE from 'three';
 
+/** Radio de la zona de interacción: mayor con dedo (pointer: coarse) que con ratón */
+const HIT_RADIUS = window.matchMedia('(pointer: coarse)').matches ? 0.16 : 0.1;
+
 /** Anillo orbital decorativo alrededor del nodo */
 function OrbitRing({ radius, color, speed = 0.8, phase = 0 }) {
   const ringRef = useRef();
@@ -154,9 +157,8 @@ export default function IdeologyNode({
 
   return (
     <group position={[coords.x, coords.y, coords.z]}>
-      {/* Esfera principal */}
+      {/* Zona de interacción invisible, más grande que la esfera para acertar con el dedo */}
       <mesh
-        ref={meshRef}
         onPointerEnter={(e) => {
           e.stopPropagation();
           setHovered(true);
@@ -169,7 +171,18 @@ export default function IdeologyNode({
           document.body.style.cursor = 'default';
           onLeave && onLeave();
         }}
+        // En táctil no hay hover: tocar el nodo abre su ficha (tocar el fondo la cierra)
+        onClick={(e) => {
+          e.stopPropagation();
+          onHover && onHover(ideology, e);
+        }}
       >
+        <sphereGeometry args={[HIT_RADIUS, 12, 12]} />
+        <meshBasicMaterial transparent opacity={0} depthWrite={false} colorWrite={false} />
+      </mesh>
+
+      {/* Esfera principal */}
+      <mesh ref={meshRef}>
         <sphereGeometry args={[0.055, 20, 20]} />
         <meshStandardMaterial
           color={color}

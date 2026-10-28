@@ -1,16 +1,19 @@
 /**
  * BasePlane.jsx
- * Plano base del cubo con los 4 cuadrantes del plano político clásico.
+ * Plano base del cubo (suelo en Y=-1).
+ *
+ * El suelo es el plano X–Z: eje Económico × eje de Pluralidad.
+ * (No es la brújula política clásica, que sería X–Y.)
  *
  * Cuadrantes (vistos desde arriba):
- *   Rojo    (Autoritario-Izquierda)  → -X, +Z respecto al suelo
- *   Azul    (Autoritario-Derecha)    → +X, +Z
- *   Verde   (Libertario-Izquierda)   → -X, -Z
- *   Amarillo(Libertario-Derecha)     → +X, -Z
+ *   Violeta (Izquierda-Pluralista) → -X, +Z
+ *   Índigo  (Derecha-Pluralista)   → +X, +Z
+ *   Pizarra (Izquierda-Monista)    → -X, -Z
+ *   Pizarra oscuro (Derecha-Monista) → +X, -Z
  *
- * IMPORTANTE: El eje Y del cubo es vertical, por lo que el plano base
- * se ubica en Y=-1 y se divide en 4 porciones en el plano XZ.
+ * La mitad pluralista usa los tonos del eje Z; la mitad monista, tonos neutros.
  */
+import { memo, useMemo } from 'react';
 import * as THREE from 'three';
 
 /** Crea un PlaneGeometry de 1x1 desplazado a un cuadrante */
@@ -31,20 +34,22 @@ function Quadrant({ position, color }) {
 
 /** Cuadrícula de referencia sutil en el plano base */
 function GridLines() {
-  const points = [];
+  const geometry = useMemo(() => {
+    const points = [];
 
-  // Líneas paralelas al eje X
-  for (let z = -1; z <= 1; z += 0.25) {
-    points.push(new THREE.Vector3(-1, -1, z));
-    points.push(new THREE.Vector3(1, -1, z));
-  }
-  // Líneas paralelas al eje Z
-  for (let x = -1; x <= 1; x += 0.25) {
-    points.push(new THREE.Vector3(x, -1, -1));
-    points.push(new THREE.Vector3(x, -1, 1));
-  }
+    // Líneas paralelas al eje X
+    for (let z = -1; z <= 1; z += 0.25) {
+      points.push(new THREE.Vector3(-1, -1, z));
+      points.push(new THREE.Vector3(1, -1, z));
+    }
+    // Líneas paralelas al eje Z
+    for (let x = -1; x <= 1; x += 0.25) {
+      points.push(new THREE.Vector3(x, -1, -1));
+      points.push(new THREE.Vector3(x, -1, 1));
+    }
 
-  const geometry = new THREE.BufferGeometry().setFromPoints(points);
+    return new THREE.BufferGeometry().setFromPoints(points);
+  }, []);
 
   return (
     <lineSegments geometry={geometry}>
@@ -53,45 +58,49 @@ function GridLines() {
   );
 }
 
-export default function BasePlane() {
+/** Líneas centrales X y Z del suelo */
+function CenterLines() {
+  const geometry = useMemo(
+    () =>
+      new THREE.BufferGeometry().setFromPoints([
+        new THREE.Vector3(-1, -1, 0),
+        new THREE.Vector3(1, -1, 0),
+        new THREE.Vector3(0, -1, -1),
+        new THREE.Vector3(0, -1, 1),
+      ]),
+    []
+  );
+
+  return (
+    <lineSegments geometry={geometry}>
+      <lineBasicMaterial color="#4f8ef7" transparent opacity={0.5} />
+    </lineSegments>
+  );
+}
+
+function BasePlane() {
   return (
     <group>
-      {/* Rojo: Autoritario-Izquierda (X<0, Z>0 en plano XZ) */}
-      <Quadrant position={[-0.5, -1, 0.5]} color="#dc2626" />
+      {/* Violeta: Izquierda-Pluralista (X<0, Z>0) */}
+      <Quadrant position={[-0.5, -1, 0.5]} color="#8b5cf6" />
 
-      {/* Azul: Autoritario-Derecha (X>0, Z>0) */}
-      <Quadrant position={[0.5, -1, 0.5]} color="#2563eb" />
+      {/* Índigo: Derecha-Pluralista (X>0, Z>0) */}
+      <Quadrant position={[0.5, -1, 0.5]} color="#6366f1" />
 
-      {/* Verde: Libertario-Izquierda (X<0, Z<0) */}
-      <Quadrant position={[-0.5, -1, -0.5]} color="#16a34a" />
+      {/* Pizarra: Izquierda-Monista (X<0, Z<0) */}
+      <Quadrant position={[-0.5, -1, -0.5]} color="#64748b" />
 
-      {/* Amarillo: Libertario-Derecha (X>0, Z<0) */}
-      <Quadrant position={[0.5, -1, -0.5]} color="#ca8a04" />
+      {/* Pizarra oscuro: Derecha-Monista (X>0, Z<0) */}
+      <Quadrant position={[0.5, -1, -0.5]} color="#475569" />
 
       {/* Cuadrícula de referencia */}
       <GridLines />
 
-      {/* Línea central X */}
-      <line>
-        <bufferGeometry
-          setFromPoints={[
-            new THREE.Vector3(-1, -1, 0),
-            new THREE.Vector3(1, -1, 0),
-          ]}
-        />
-        <lineBasicMaterial color="#4f8ef7" transparent opacity={0.5} />
-      </line>
-
-      {/* Línea central Z */}
-      <line>
-        <bufferGeometry
-          setFromPoints={[
-            new THREE.Vector3(0, -1, -1),
-            new THREE.Vector3(0, -1, 1),
-          ]}
-        />
-        <lineBasicMaterial color="#4f8ef7" transparent opacity={0.5} />
-      </line>
+      {/* Líneas centrales X y Z */}
+      <CenterLines />
     </group>
   );
 }
+
+// Sin props: no necesita re-renderizarse cuando cambia el estado de la app
+export default memo(BasePlane);

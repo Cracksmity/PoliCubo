@@ -122,6 +122,17 @@ export const IDEOLOGIES = [
   },
 ];
 
+/** Minúsculas y sin tildes, para que "ecologia" encuentre "ecología" */
+const normalize = (s) => s.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
+
+/**
+ * Indica si una corriente coincide con el texto de búsqueda (por nombre).
+ * Una búsqueda vacía coincide con todo.
+ */
+export function matchesSearch(ideology, search) {
+  return normalize(ideology.name).includes(normalize(search.trim()));
+}
+
 /**
  * Mapea un valor de [-1, 1] a una etiqueta descriptiva del eje X
  */

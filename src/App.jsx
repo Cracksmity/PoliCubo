@@ -19,9 +19,27 @@ import SceneController from './components/SceneController';
 import ConversationalTestModal from './components/ConversationalTestModal';
 import { IDEOLOGIES }  from './data/ideologies';
 
+// Debe coincidir con el breakpoint móvil de index.css
+const MOBILE_QUERY = '(max-width: 767px)';
+
+/** true en pantallas estrechas (móvil); se actualiza al girar o redimensionar */
+function useIsMobile() {
+  const [isMobile, setIsMobile] = useState(() => window.matchMedia(MOBILE_QUERY).matches);
+  useEffect(() => {
+    const mql = window.matchMedia(MOBILE_QUERY);
+    const onChange = (e) => setIsMobile(e.matches);
+    mql.addEventListener('change', onChange);
+    return () => mql.removeEventListener('change', onChange);
+  }, []);
+  return isMobile;
+}
+
 export default function App() {
+  const isMobile = useIsMobile();
+
   // ── Estado del filtro panel ────────────────────────────────
-  const [panelOpen, setPanelOpen]   = useState(true);
+  // En móvil el panel es una hoja inferior: empieza cerrado para que se vea el cubo
+  const [panelOpen, setPanelOpen]   = useState(() => !window.matchMedia(MOBILE_QUERY).matches);
   const [search, setSearch]         = useState('');
   const [zThreshold, setZThreshold] = useState(-1); // mostrar todos por defecto
   const [activeIds, setActiveIds]   = useState([]);
@@ -29,6 +47,7 @@ export default function App() {
   // ── Estado del tooltip ────────────────────────────────────
   const [hoveredNode, setHoveredNode] = useState(null);
   const [tooltipPos, setTooltipPos]   = useState(null);
+  const tooltipRef = useRef(null); // SceneController lo reposiciona en cada frame
 
   // ── Estado del Easter Egg ─────────────────────────────────
   const [easterEggActive, setEasterEggActive] = useState(false);
@@ -96,7 +115,9 @@ export default function App() {
     setActiveIds((prev) =>
       prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]
     );
-  }, []);
+    // En móvil la hoja tapa el cubo: se cierra para ver el viaje de la cámara al nodo
+    if (isMobile) setPanelOpen(false);
+  }, [isMobile]);
 
   return (
     <div className="app-container">
@@ -154,9 +175,11 @@ export default function App() {
               ideologies={displayIdeologies}
               activeIds={activeIds}
               zThreshold={zThreshold}
+              search={search}
               onNodeHover={handleNodeHover}
               onNodeLeave={handleNodeLeave}
               hoveredId={hoveredNode?.id}
+              tooltipRef={tooltipRef}
             />
           </PerformanceMonitor>
         </Canvas>
@@ -164,7 +187,7 @@ export default function App() {
 
       {/* ── Tooltip ── */}
       {hoveredNode && tooltipPos && (
-        <TooltipOverlay node={hoveredNode} screenPos={tooltipPos} />
+        <TooltipOverlay node={hoveredNode} screenPos={tooltipPos} containerRef={tooltipRef} />
       )}
 
       {/* ── Panel de filtros ── */}
@@ -183,22 +206,32 @@ export default function App() {
 
       {/* ── Leyenda de ejes ── */}
       <div className="legend-panel" aria-label="Leyenda de ejes">
+        {/* Solo móvil: con el panel cerrado, el test necesita su propio botón */}
+        <button className="mobile-test-btn" onClick={() => setIsTesting(true)}>
+          <span>🧠</span> Descubre tu posición: haz el test
+        </button>
+
+        {/* Solo pantallas táctiles: sustituye a las pistas de ratón */}
+        <div className="touch-hint">
+          Arrastra para rotar · Pellizca para zoom · Toca un nodo
+        </div>
+
         <div className="legend-item">
           <div className="legend-axis-bar" style={{ background: '#f43f5e' }} />
           <span className="legend-text">
-            <strong>Eje X</strong> — Económico
+            <strong><span className="legend-eje">Eje </span>X</strong> — Económico
           </span>
         </div>
         <div className="legend-item">
           <div className="legend-axis-bar" style={{ background: '#22d3ee' }} />
           <span className="legend-text">
-            <strong>Eje Y</strong> — Social / Político
+            <strong><span className="legend-eje">Eje </span>Y</strong> — Social / Político
           </span>
         </div>
         <div className="legend-item">
           <div className="legend-axis-bar" style={{ background: '#a78bfa' }} />
           <span className="legend-text">
-            <strong>Eje Z</strong> — Pluralidad / Inclusión
+            <strong><span className="legend-eje">Eje </span>Z</strong> — Pluralidad / Inclusión
           </span>
         </div>
 
@@ -211,8 +244,9 @@ export default function App() {
             window.dispatchEvent(new CustomEvent('resetCamera'));
           }}
           title="Volver a la vista inicial"
+          aria-label="Centrar vista"
         >
-          ↺ Centrar vista
+          ↺<span className="reset-btn-label"> Centrar vista</span>
         </button>
       </div>
 

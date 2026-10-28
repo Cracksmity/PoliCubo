@@ -5,67 +5,51 @@ export default function ConversationalTestModal({ isOpen, onClose }) {
   const [testMessage, setTestMessage] = useState('');
   const [messages, setMessages] = useState([]);
   const [isLoading, setIsLoading] = useState(false);
+  const [isFinished, setIsFinished] = useState(false);
   const messagesEndRef = useRef(null);
   const textareaRef = useRef(null);
+  const requestRef = useRef(null); // AbortController de la petición en curso
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   };
 
   useEffect(() => {
-    if (isOpen) {
-      scrollToBottom();
-      // Reset state if opened freshly without mode
-      if (messages.length === 0 && !testMode) {
-         setTestMode(null);
-         setMessages([]);
-      }
-    } else {
-       // Opcional: resetear al cerrar
-       // setTestMode(null);
-       // setMessages([]);
-    }
-  }, [messages, isOpen, testMode]);
+    if (isOpen) scrollToBottom();
+  }, [messages, isOpen, isLoading]);
 
-  const handleSelectMode = (mode) => {
-    setTestMode(mode);
-    if (mode === 'guided') {
-      // Auto-iniciar la conversación para evitar que el usuario se quede esperando
-      handleSendMessage("¡Hola! Quiero empezar el test en Modo Guiado.", []);
-    } else {
-      const welcomeText = '¡Bienvenido al test conversacional (Modo Libre)! Cuéntame, ¿cuál es tu postura ideal sobre el papel del gobierno en la sociedad?';
-      setMessages([{ role: 'ai', text: welcomeText }]);
-    }
+  /** Vuelve a la selección de modo, descartando cualquier respuesta pendiente */
+  const resetTest = () => {
+    requestRef.current?.abort();
+    requestRef.current = null;
+    setIsLoading(false);
+    setIsFinished(false);
+    setTestMode(null);
+    setMessages([]);
+    setTestMessage('');
   };
 
-  const handleSendMessage = async (forcedText = null, overrideMessages = null) => {
-    // Permite usar el botón directamente saltando el input
-    const isEvent = forcedText && typeof forcedText === 'object' && forcedText.preventDefault;
-    const textToSend = isEvent ? testMessage : (forcedText || testMessage);
-    
-    if (!textToSend.trim() || isLoading) return;
-    
-    const currentMsgs = overrideMessages !== null ? overrideMessages : messages;
-    const newMessages = [...currentMsgs, { role: 'user', text: textToSend }];
-    setMessages(newMessages);
-    setTestMessage('');
-    if (textareaRef.current) {
-      textareaRef.current.style.height = '48px'; // reset height after send
-    }
+  /**
+   * Pide a la IA el siguiente paso de la conversación.
+   * Los mensajes de error se muestran en el chat pero nunca se envían al modelo.
+   * `mode` se pasa explícito porque al elegir modo el estado aún no se ha actualizado.
+   */
+  const requestNext = async (history, mode = testMode) => {
+    requestRef.current?.abort();
+    const controller = new AbortController();
+    requestRef.current = controller;
     setIsLoading(true);
 
-    const abortController = new AbortController();
-    const timeoutId = setTimeout(() => abortController.abort(), 35000); // 35s timeout para dar tiempo a la IA
+    let timedOut = false;
+    const timeoutId = setTimeout(() => { timedOut = true; controller.abort(); }, 35000); // 35s timeout para dar tiempo a la IA
 
     try {
       const response = await fetch('/api/chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ messages: newMessages, mode: testMode }),
-        signal: abortController.signal
+        body: JSON.stringify({ messages: history.filter(m => !m.isError), mode }),
+        signal: controller.signal
       });
-      
-      clearTimeout(timeoutId);
 
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}));
@@ -73,35 +57,80 @@ export default function ConversationalTestModal({ isOpen, onClose }) {
       }
 
       const data = await response.json();
-      
-      if (data.status === 'en_progreso') {
+      if (requestRef.current !== controller) return; // el test se reinició mientras tanto
+
+      if (data.status === 'en_progreso' && data.siguiente_pregunta) {
         setMessages(prev => [...prev, { role: 'ai', text: data.siguiente_pregunta, opciones: data.opciones }]);
-      } else if (data.status === 'finalizado') {
+      } else if (data.status === 'finalizado' && data.coordenadas) {
         const { x, y, z } = data.coordenadas;
         const nombreIdeologia = data.nombre_ideologia || '';
         const descripcion = data.descripcion_personalizada || '';
+        const razonamiento = data.razonamiento_coordenadas
+          ? `\n\n🔎 Por qué estas coordenadas: ${data.razonamiento_coordenadas}`
+          : '';
 
         setMessages(prev => [
-          ...prev, 
-          { 
-            role: 'ai', 
-            text: `¡Test Finalizado!\n\n🧠 Ideología detectada: ${nombreIdeologia}\n\n${descripcion}\n\n📍 Coordenadas mapeadas: X: ${x}, Y: ${y}, Z: ${z}` 
+          ...prev,
+          {
+            role: 'ai',
+            text: `¡Test Finalizado!\n\n🧠 Ideología detectada: ${nombreIdeologia}\n\n${descripcion}\n\n📍 Coordenadas mapeadas: X: ${x.toFixed(2)}, Y: ${y.toFixed(2)}, Z: ${z.toFixed(2)}${razonamiento}`
           }
         ]);
-        
+        setIsFinished(true);
+
         window.dispatchEvent(new CustomEvent('addUserNode', { detail: data }));
+      } else {
+        throw new Error('Respuesta inesperada del servidor');
       }
     } catch (err) {
+      if (requestRef.current !== controller) return; // petición descartada a propósito
       console.error('Error fetching chat:', err);
-      if (err.name === 'AbortError') {
-        setMessages(prev => [...prev, { role: 'ai', text: 'El oráculo tardó demasiado en responder (timeout). Por favor, intenta de nuevo.' }]);
-      } else {
-        setMessages(prev => [...prev, { role: 'ai', text: `Error de conexión: ${err.message}. Verifica tu configuración.` }]);
-      }
+      const text = timedOut
+        ? 'El oráculo tardó demasiado en responder (timeout).'
+        : `Error de conexión: ${err.message}`;
+      setMessages(prev => [...prev, { role: 'ai', text, isError: true }]);
     } finally {
       clearTimeout(timeoutId);
-      setIsLoading(false);
+      if (requestRef.current === controller) {
+        requestRef.current = null;
+        setIsLoading(false);
+      }
     }
+  };
+
+  const handleSelectMode = (mode) => {
+    setTestMode(mode);
+    setIsFinished(false);
+    if (mode === 'guided') {
+      // Auto-iniciar la conversación: el servidor genera la primera pregunta sin que cuente como respuesta
+      setMessages([]);
+      requestNext([], mode);
+    } else {
+      const welcomeText = '¡Bienvenido al test conversacional (Modo Libre)! Cuéntame, ¿cuál es tu postura ideal sobre el papel del gobierno en la sociedad?';
+      setMessages([{ role: 'ai', text: welcomeText }]);
+    }
+  };
+
+  const handleSendMessage = (forcedText = null) => {
+    // Permite usar el botón directamente saltando el input
+    const textToSend = typeof forcedText === 'string' ? forcedText : testMessage;
+
+    if (!textToSend.trim() || isLoading || isFinished) return;
+
+    const newMessages = [...messages, { role: 'user', text: textToSend }];
+    setMessages(newMessages);
+    setTestMessage('');
+    if (textareaRef.current) {
+      textareaRef.current.style.height = '48px'; // reset height after send
+    }
+    requestNext(newMessages);
+  };
+
+  /** Reenvía la conversación quitando los mensajes de error */
+  const handleRetry = () => {
+    const history = messages.filter(m => !m.isError);
+    setMessages(history);
+    requestNext(history);
   };
 
   const handleInput = (e) => {
@@ -111,6 +140,9 @@ export default function ConversationalTestModal({ isOpen, onClose }) {
   };
 
   if (!isOpen) return null;
+
+  // Pantallas estrechas: tarjetas de modo apiladas y más compactas
+  const compact = window.innerWidth < 600;
 
   return (
     <div style={{
@@ -151,11 +183,7 @@ export default function ConversationalTestModal({ isOpen, onClose }) {
           <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
             {testMode && (
               <button
-                onClick={() => {
-                  setTestMode(null);
-                  setMessages([]);
-                  setTestMessage('');
-                }}
+                onClick={resetTest}
                 style={{
                   background: 'rgba(255, 255, 255, 0.05)',
                   border: '1px solid var(--border-glass)',
@@ -204,21 +232,22 @@ export default function ConversationalTestModal({ isOpen, onClose }) {
 
         {!testMode ? (
           // Selección de Modo
-          <div style={{ flex: 1, display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center', padding: '40px', textAlign: 'center', overflowY: 'auto' }}>
-            <h3 style={{ fontSize: '1.8rem', marginBottom: '15px', color: 'var(--text-primary)', fontWeight: '700' }}>¿Cómo prefieres hacer el test?</h3>
-            <p style={{ color: 'var(--text-muted)', marginBottom: '40px', maxWidth: '500px', fontSize: '1.05rem', lineHeight: '1.6' }}>
+          // 'safe center': si no cabe (móvil), el contenido empieza arriba en vez de cortarse
+          <div style={{ flex: 1, display: 'flex', flexDirection: 'column', justifyContent: 'safe center', alignItems: 'center', padding: compact ? '24px 16px' : '40px', textAlign: 'center', overflowY: 'auto' }}>
+            <h3 style={{ fontSize: compact ? '1.4rem' : '1.8rem', marginBottom: '15px', color: 'var(--text-primary)', fontWeight: '700' }}>¿Cómo prefieres hacer el test?</h3>
+            <p style={{ color: 'var(--text-muted)', marginBottom: compact ? '24px' : '40px', maxWidth: '500px', fontSize: compact ? '0.95rem' : '1.05rem', lineHeight: '1.6' }}>
               Elige el modo que mejor se adapte a ti. No te preocupes, el resultado final será igual de preciso en ambos casos.
             </p>
-            
-            <div style={{ display: 'flex', gap: '24px', flexDirection: window.innerWidth < 600 ? 'column' : 'row' }}>
+
+            <div style={{ display: 'flex', gap: compact ? '14px' : '24px', flexDirection: compact ? 'column' : 'row', width: compact ? '100%' : 'auto', maxWidth: '544px' }}>
               <button 
                 onClick={() => handleSelectMode('guided')}
                 style={{
                   background: 'linear-gradient(135deg, rgba(34, 211, 238, 0.08) 0%, rgba(14, 165, 233, 0.12) 100%)',
                   border: '1px solid rgba(34, 211, 238, 0.4)',
                   borderRadius: '20px',
-                  padding: '35px 25px',
-                  width: '260px',
+                  padding: compact ? '20px 18px' : '35px 25px',
+                  width: compact ? '100%' : '260px',
                   cursor: 'pointer',
                   transition: 'all 0.2s cubic-bezier(0.4, 0, 0.2, 1)',
                   display: 'flex',
@@ -229,7 +258,7 @@ export default function ConversationalTestModal({ isOpen, onClose }) {
                 onMouseEnter={e => { e.currentTarget.style.transform = 'scale(1.03)'; e.currentTarget.style.boxShadow = '0 15px 30px rgba(34, 211, 238, 0.15)'; e.currentTarget.style.background = 'linear-gradient(135deg, rgba(34, 211, 238, 0.15) 0%, rgba(14, 165, 233, 0.2) 100%)'; e.currentTarget.style.borderColor = 'rgba(34, 211, 238, 0.7)'; }}
                 onMouseLeave={e => { e.currentTarget.style.transform = 'scale(1)'; e.currentTarget.style.boxShadow = 'none'; e.currentTarget.style.background = 'linear-gradient(135deg, rgba(34, 211, 238, 0.08) 0%, rgba(14, 165, 233, 0.12) 100%)'; e.currentTarget.style.borderColor = 'rgba(34, 211, 238, 0.4)'; }}
               >
-                <span style={{ fontSize: '3.5rem', filter: 'drop-shadow(0 0 10px rgba(34, 211, 238, 0.5))', pointerEvents: 'none' }}>🧭</span>
+                <span style={{ fontSize: compact ? '2.5rem' : '3.5rem', filter: 'drop-shadow(0 0 10px rgba(34, 211, 238, 0.5))', pointerEvents: 'none' }}>🧭</span>
                 <span style={{ fontSize: '1.3rem', fontWeight: '800', color: 'var(--accent-cyan)', pointerEvents: 'none' }}>Modo Guiado</span>
                 <span style={{ fontSize: '0.95rem', color: 'var(--text-muted)', lineHeight: '1.4', pointerEvents: 'none' }}><strong>Recomendado.</strong> Preguntas sobre casos cotidianos con opciones de respuesta rápidas.</span>
               </button>
@@ -240,8 +269,8 @@ export default function ConversationalTestModal({ isOpen, onClose }) {
                   background: 'rgba(255, 255, 255, 0.02)',
                   border: '1px solid rgba(255, 255, 255, 0.1)',
                   borderRadius: '20px',
-                  padding: '35px 25px',
-                  width: '260px',
+                  padding: compact ? '20px 18px' : '35px 25px',
+                  width: compact ? '100%' : '260px',
                   cursor: 'pointer',
                   transition: 'all 0.2s cubic-bezier(0.4, 0, 0.2, 1)',
                   display: 'flex',
@@ -252,7 +281,7 @@ export default function ConversationalTestModal({ isOpen, onClose }) {
                 onMouseEnter={e => { e.currentTarget.style.transform = 'scale(1.03)'; e.currentTarget.style.boxShadow = '0 15px 30px rgba(0, 0, 0, 0.3)'; e.currentTarget.style.background = 'rgba(255, 255, 255, 0.05)'; e.currentTarget.style.borderColor = 'rgba(255, 255, 255, 0.25)'; }}
                 onMouseLeave={e => { e.currentTarget.style.transform = 'scale(1)'; e.currentTarget.style.boxShadow = 'none'; e.currentTarget.style.background = 'rgba(255, 255, 255, 0.02)'; e.currentTarget.style.borderColor = 'rgba(255, 255, 255, 0.1)'; }}
               >
-                <span style={{ fontSize: '3.5rem', filter: 'drop-shadow(0 0 10px rgba(255, 255, 255, 0.2))', pointerEvents: 'none' }}>✍️</span>
+                <span style={{ fontSize: compact ? '2.5rem' : '3.5rem', filter: 'drop-shadow(0 0 10px rgba(255, 255, 255, 0.2))', pointerEvents: 'none' }}>✍️</span>
                 <span style={{ fontSize: '1.3rem', fontWeight: '800', color: 'var(--text-primary)', pointerEvents: 'none' }}>Modo Libre</span>
                 <span style={{ fontSize: '0.95rem', color: 'var(--text-muted)', lineHeight: '1.4', pointerEvents: 'none' }}>Para expertos. Preguntas abstractas donde tú redactas tus propios argumentos.</span>
               </button>
@@ -272,9 +301,9 @@ export default function ConversationalTestModal({ isOpen, onClose }) {
               {messages.map((msg, i) => (
                 <div key={i} style={{
                   alignSelf: msg.role === 'user' ? 'flex-end' : 'flex-start',
-                  background: msg.isEasterEgg ? 'rgba(50, 50, 50, 0.4)' : msg.role === 'user' ? 'rgba(34, 211, 238, 0.12)' : 'rgba(255, 255, 255, 0.04)',
-                  color: msg.isEasterEgg ? '#888' : msg.role === 'user' ? 'var(--accent-cyan)' : 'var(--text-primary)',
-                  border: msg.isEasterEgg ? '1px dashed #555' : msg.role === 'user' ? '1px solid rgba(34, 211, 238, 0.25)' : '1px solid var(--border-glass)',
+                  background: msg.isError ? 'rgba(244, 63, 94, 0.08)' : msg.role === 'user' ? 'rgba(34, 211, 238, 0.12)' : 'rgba(255, 255, 255, 0.04)',
+                  color: msg.role === 'user' ? 'var(--accent-cyan)' : 'var(--text-primary)',
+                  border: msg.isError ? '1px dashed rgba(244, 63, 94, 0.5)' : msg.role === 'user' ? '1px solid rgba(34, 211, 238, 0.25)' : '1px solid var(--border-glass)',
                   padding: '16px 20px',
                   borderRadius: '18px',
                   borderBottomRightRadius: msg.role === 'user' ? '4px' : '18px',
@@ -283,11 +312,31 @@ export default function ConversationalTestModal({ isOpen, onClose }) {
                   fontSize: '0.98rem',
                   lineHeight: '1.6',
                   whiteSpace: 'pre-wrap',
-                  fontStyle: msg.isEasterEgg ? 'italic' : 'normal',
                   boxShadow: '0 4px 15px rgba(0,0,0,0.1)'
                 }}>
                   {msg.text}
-                  
+
+                  {/* Reintentar tras un error (el error no se envía a la IA) */}
+                  {msg.isError && i === messages.length - 1 && !isLoading && (
+                    <div style={{ marginTop: '12px' }}>
+                      <button
+                        onClick={handleRetry}
+                        style={{
+                          background: 'rgba(244, 63, 94, 0.12)',
+                          border: '1px solid rgba(244, 63, 94, 0.4)',
+                          borderRadius: '10px',
+                          padding: '8px 16px',
+                          color: 'var(--text-primary)',
+                          cursor: 'pointer',
+                          fontSize: '0.9rem',
+                          fontWeight: '600'
+                        }}
+                      >
+                        ↻ Reintentar
+                      </button>
+                    </div>
+                  )}
+
                   {/* Opciones del Modo Guiado (Quick Replies) */}
                   {msg.opciones && Array.isArray(msg.opciones) && i === messages.length - 1 && !isLoading && (
                     <div style={{ marginTop: '16px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
@@ -345,8 +394,56 @@ export default function ConversationalTestModal({ isOpen, onClose }) {
               <div ref={messagesEndRef} />
             </div>
 
+            {/* Test terminado: no se puede seguir enviando mensajes */}
+            {isFinished && (
+              <div style={{
+                padding: '20px 24px',
+                borderTop: '1px solid var(--border-glass)',
+                background: 'rgba(0, 0, 0, 0.3)',
+                display: 'flex',
+                gap: '16px',
+                justifyContent: 'flex-end',
+                flexWrap: 'wrap'
+              }}>
+                <button
+                  onClick={resetTest}
+                  style={{
+                    background: 'rgba(255, 255, 255, 0.04)',
+                    border: '1px solid var(--border-glass)',
+                    borderRadius: '14px',
+                    padding: '0 24px',
+                    height: '52px',
+                    color: 'var(--text-primary)',
+                    fontWeight: '600',
+                    fontSize: '0.98rem',
+                    cursor: 'pointer'
+                  }}
+                >
+                  ↺ Repetir test
+                </button>
+                <button
+                  onClick={onClose}
+                  style={{
+                    background: 'linear-gradient(135deg, var(--accent-cyan) 0%, #0ea5e9 100%)',
+                    color: '#fff',
+                    border: 'none',
+                    borderRadius: '14px',
+                    padding: '0 28px',
+                    height: '52px',
+                    fontWeight: '700',
+                    fontSize: '0.98rem',
+                    cursor: 'pointer',
+                    boxShadow: '0 4px 15px rgba(34, 211, 238, 0.3)'
+                  }}
+                >
+                  Ver mi posición en el cubo
+                </button>
+              </div>
+            )}
+
             {/* Input Area */}
-            <div style={{ 
+            {!isFinished && (
+            <div style={{
               padding: '20px 24px', 
               borderTop: '1px solid var(--border-glass)',
               background: 'rgba(0, 0, 0, 0.3)',
@@ -413,6 +510,7 @@ export default function ConversationalTestModal({ isOpen, onClose }) {
                 Enviar
               </button>
             </div>
+            )}
           </>
         )}
       </div>

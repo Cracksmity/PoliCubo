@@ -2,16 +2,18 @@
  * TooltipOverlay.jsx
  * Tooltip HTML que se posiciona sobre el canvas al hacer hover en un nodo.
  * Se muestra en coordenadas de pantalla proyectadas desde Three.js.
+ * `containerRef` permite a SceneController moverlo en cada frame.
  */
 import { labelX, labelY, labelZ } from '../data/ideologies';
 
-export default function TooltipOverlay({ node, screenPos }) {
+export default function TooltipOverlay({ node, screenPos, containerRef }) {
   if (!node || !screenPos) return null;
 
   const { name, coords, color, description } = node;
 
   return (
     <div
+      ref={containerRef}
       className="tooltip-overlay"
       role="tooltip"
       style={{ left: screenPos.x, top: screenPos.y }}

@@ -3,13 +3,13 @@
  * Partículas flotantes de fondo para dar profundidad y ambiente al espacio 3D.
  * Usa instanced rendering para eficiencia.
  */
-import { useRef, useMemo } from 'react';
+import { memo, useRef, useMemo } from 'react';
 import { useFrame } from '@react-three/fiber';
 import * as THREE from 'three';
 
 const COUNT = 80;
 
-export default function AmbientParticles() {
+function AmbientParticles() {
   const mesh = useRef();
 
   // Posiciones y velocidades aleatorias iniciales
@@ -71,3 +71,6 @@ export default function AmbientParticles() {
     </instancedMesh>
   );
 }
+
+// Sin props: no necesita re-renderizarse cuando cambia el estado de la app
+export default memo(AmbientParticles);

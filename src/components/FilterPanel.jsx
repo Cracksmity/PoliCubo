@@ -8,7 +8,7 @@
  * 2. Slider de umbral del eje Z (Pluralidad)
  * 3. Lista de nodos con indicador de color y toggle
  */
-import { useState, useRef, useEffect } from 'react';
+import { matchesSearch } from '../data/ideologies';
 
 export default function FilterPanel({
   ideologies,
@@ -23,9 +23,7 @@ export default function FilterPanel({
   onOpenTest,
 }) {
   // Ideologías filtradas por búsqueda
-  const filtered = ideologies.filter((id) =>
-    id.name.toLowerCase().includes(search.toLowerCase())
-  );
+  const filtered = ideologies.filter((id) => matchesSearch(id, search));
 
   // Calcula si un nodo pasa el filtro de Z
   const passesZ = (ideology) => ideology.coords.z >= zThreshold;

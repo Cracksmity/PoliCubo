@@ -7,6 +7,7 @@
  *   - ideologies: array de corrientes ideológicas
  *   - activeIds: array de IDs resaltados desde el FilterPanel
  *   - zThreshold: umbral mínimo del eje Z (Pluralidad)
+ *   - search: texto del buscador (atenúa los nodos que no coinciden)
  *   - onNodeHover: callback cuando el cursor entra a un nodo
  *   - onNodeLeave: callback cuando el cursor sale de un nodo
  */
@@ -21,6 +22,7 @@ import AxisArrows      from './AxisArrows';
 import IdeologyNode    from './IdeologyNode';
 import ConnectionLines from './ConnectionLines';
 import AmbientParticles from './AmbientParticles';
+import { matchesSearch } from '../data/ideologies';
 
 /** Rotación lenta auto cuando no hay interacción */
 function AutoRotate({ enabled }) {
@@ -49,19 +51,31 @@ export default function PoliticalCube({
   ideologies,
   activeIds,
   zThreshold,
+  search,
   onNodeHover,
   onNodeLeave,
   hoveredId,
 }) {
   const controlsRef = useRef();
   const { camera } = useThree();
+  const size = useThree((state) => state.size);
 
   const [animatingToNode, setAnimatingToNode] = useState(false);
   const [nodeTargetPos, setNodeTargetPos] = useState(null);
   const prevTargetId = useRef(null);
 
-  // Posición inicial de cámara para reset
-  const INITIAL_CAM_POS = new THREE.Vector3(2.8, 1.8, 2.8);
+  // En pantallas verticales (móvil) el campo de visión horizontal es estrecho:
+  // alejamos la cámara para que el cubo quepa a lo ancho
+  const camScale = THREE.MathUtils.clamp(0.8 / (size.width / size.height), 1, 1.8);
+  const appliedCamScale = useRef(1);
+
+  // Al cambiar la escala (montaje, giro del móvil) se ajusta solo la distancia, sin perder la vista
+  useEffect(() => {
+    const target = controlsRef.current ? controlsRef.current.target : new THREE.Vector3();
+    camera.position.sub(target).multiplyScalar(camScale / appliedCamScale.current).add(target);
+    appliedCamScale.current = camScale;
+    controlsRef.current?.update();
+  }, [camScale, camera]);
 
   const userNode = ideologies.find(id => id.id === 'user-node');
   
@@ -92,10 +106,13 @@ export default function PoliticalCube({
 
       const dir = pos.clone().normalize();
       // Ubicar la cámara manteniendo una distancia superior al minDistance (2.0) de OrbitControls
-      const targetCamPos = pos.clone().add(dir.multiplyScalar(2.5));
+      const targetCamPos = pos.clone().add(dir.multiplyScalar(2.5 * camScale));
       
-      state.camera.position.lerp(targetCamPos, delta * 2.5);
-      controlsRef.current.target.lerp(nodeTargetPos, delta * 2.5);
+      // Limitado a 1: con fotogramas lentos (pestaña en segundo plano, móvil modesto)
+      // un factor > 1 sobrepasa el objetivo y la cámara sale disparada
+      const t = Math.min(1, delta * 2.5);
+      state.camera.position.lerp(targetCamPos, t);
+      controlsRef.current.target.lerp(nodeTargetPos, t);
       controlsRef.current.update();
 
       // Relajar el umbral para asegurar que la animación se detenga
@@ -115,11 +132,11 @@ export default function PoliticalCube({
   /** Resetea la cámara a posición inicial — llamado desde doble clic o botón */
   const handleReset = useCallback(() => {
     if (!controlsRef.current) return;
-    camera.position.set(2.8, 1.8, 2.8);
+    camera.position.set(2.8, 1.8, 2.8).multiplyScalar(camScale);
     controlsRef.current.target.set(0, 0, 0);
     controlsRef.current.update();
     controlsRef.current.autoRotate = true;
-  }, [camera]);
+  }, [camera, camScale]);
 
   // Escuchar evento global de reset (disparado por botón HTML fuera del Canvas)
   useEffect(() => {
@@ -132,9 +149,10 @@ export default function PoliticalCube({
     (ideology) => {
       const failsZ = ideology.coords.z < zThreshold;
       const failsActive = activeIds.length > 0 && !activeIds.includes(ideology.id);
-      return failsZ || failsActive;
+      const failsSearch = !matchesSearch(ideology, search);
+      return failsZ || failsActive || failsSearch;
     },
-    [zThreshold, activeIds]
+    [zThreshold, activeIds, search]
   );
 
   const isNodeHighlighted = useCallback(
@@ -221,7 +239,7 @@ export default function PoliticalCube({
         enableZoom={true}
         enableRotate={true}
         minDistance={2.0}
-        maxDistance={5.5}
+        maxDistance={5.5 * camScale}
         autoRotate={true}
         autoRotateSpeed={0.4}
         // ── Límites verticales ESTRICTOS: evitan mirar al vacío ──

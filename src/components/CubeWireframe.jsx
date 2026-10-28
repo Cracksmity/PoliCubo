@@ -3,17 +3,18 @@
  * Dibuja la estructura de alambre de PoliCubo con efecto glow sutil.
  * El cubo tiene dimensiones de 2x2x2 (de -1 a +1 en cada eje).
  */
-import { useRef } from 'react';
+import { memo, useMemo } from 'react';
 import * as THREE from 'three';
 
-export default function CubeWireframe() {
-  const edges = useRef();
+function CubeWireframe() {
+  // Geometrías creadas una sola vez (antes se recreaban en cada render sin liberarse)
+  const outerEdges = useMemo(() => new THREE.EdgesGeometry(new THREE.BoxGeometry(2, 2, 2)), []);
+  const innerEdges = useMemo(() => new THREE.EdgesGeometry(new THREE.BoxGeometry(2.004, 2.004, 2.004)), []);
 
   return (
     <group>
       {/* Cubo wireframe principal */}
-      <lineSegments>
-        <edgesGeometry args={[new THREE.BoxGeometry(2, 2, 2)]} />
+      <lineSegments geometry={outerEdges}>
         <lineBasicMaterial
           color="#4f8ef7"
           transparent
@@ -23,8 +24,7 @@ export default function CubeWireframe() {
       </lineSegments>
 
       {/* Cubo interior más suave para dar profundidad */}
-      <lineSegments>
-        <edgesGeometry args={[new THREE.BoxGeometry(2.004, 2.004, 2.004)]} />
+      <lineSegments geometry={innerEdges}>
         <lineBasicMaterial
           color="#8b5cf6"
           transparent
@@ -47,3 +47,6 @@ export default function CubeWireframe() {
     </group>
   );
 }
+
+// Sin props: no necesita re-renderizarse cuando cambia el estado de la app
+export default memo(CubeWireframe);

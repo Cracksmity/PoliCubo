@@ -9,6 +9,7 @@
  * Las etiquetas usan <Html> de @react-three/drei para mantenerse
  * siempre de cara a la cámara (Billboard effect).
  */
+import { memo, useMemo } from 'react';
 import { Html } from '@react-three/drei';
 import * as THREE from 'three';
 
@@ -24,8 +25,12 @@ function ArrowHead({ position, rotation, color }) {
 
 /** Línea del eje */
 function AxisLine({ start, end, color }) {
-  const points = [new THREE.Vector3(...start), new THREE.Vector3(...end)];
-  const geometry = new THREE.BufferGeometry().setFromPoints(points);
+  // Clave por valor: start/end llegan como arrays literales nuevos en cada render
+  const key = `${start}|${end}`;
+  const geometry = useMemo(
+    () => new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(...start), new THREE.Vector3(...end)]),
+    [key]
+  );
 
   return (
     <line geometry={geometry}>
@@ -91,7 +96,7 @@ function AxisCenterLabel({ position, text, color }) {
   );
 }
 
-export default function AxisArrows() {
+function AxisArrows() {
   const AXIS_LENGTH = 1.0; // radio desde el centro al borde del cubo
   const LABEL_OFFSET = 1.22; // offset para etiquetas de extremos
 
@@ -158,3 +163,6 @@ export default function AxisArrows() {
     </group>
   );
 }
+
+// Sin props: no necesita re-renderizarse cuando cambia el estado de la app
+export default memo(AxisArrows);
