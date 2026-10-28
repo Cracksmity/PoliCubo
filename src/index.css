@@ -287,6 +287,26 @@ button {
   background-clip: text;
 }
 
+.app-title-row {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+}
+
+/* Distintivo de versión: pequeño y apagado para no competir con el logo */
+.version-badge {
+  padding: 1px 6px;
+  border-radius: 999px;
+  border: 1px solid rgba(139, 92, 246, 0.35);
+  background: rgba(139, 92, 246, 0.1);
+  color: #b4a5f5;
+  font-size: 0.6rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  line-height: 1.5;
+  cursor: default;
+}
+
 .app-subtitle {
   font-size: 0.75rem;
   color: var(--text-muted);
@@ -699,6 +719,13 @@ button {
   display: flex;
   flex-direction: column;
   gap: 10px;
+}
+
+.welcome-version {
+  margin-top: 16px;
+  font-size: 0.68rem;
+  color: var(--text-muted);
+  letter-spacing: 0.04em;
 }
 
 /* ── Toast ───────────────────────────────────── */

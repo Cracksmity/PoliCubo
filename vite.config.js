@@ -1,9 +1,16 @@
+import { readFileSync } from 'node:fs';
 import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
+
+const { version } = JSON.parse(readFileSync(new URL('./package.json', import.meta.url), 'utf8'));
 
 // https://vite.dev/config/
 export default defineConfig({
   plugins: [react()],
+  // Versión de package.json disponible en la app (se muestra en el header y la ayuda)
+  define: {
+    __APP_VERSION__: JSON.stringify(version),
+  },
   // Optimizar imports de Three.js y R3F
   optimizeDeps: {
     include: [

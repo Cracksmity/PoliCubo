@@ -55,6 +55,8 @@ export default function WelcomeOverlay() {
             <Telescope size={18} aria-hidden="true" /> Explorar el cubo
           </button>
         </div>
+
+        <p className="welcome-version">PoliCubo v{__APP_VERSION__}</p>
       </div>
     </div>
   );

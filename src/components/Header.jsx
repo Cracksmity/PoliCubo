@@ -30,7 +30,13 @@ export default function Header() {
       <div className="app-logo">
         <img className="app-logo-icon" src="/cube-icon.svg" alt="" width="36" height="36" />
         <div>
-          <h1 className="app-title">PoliCubo</h1>
+          <div className="app-title-row">
+            <h1 className="app-title">PoliCubo</h1>
+            {/* Versión discreta: solo la mayor (v2); la completa en el título y en la ayuda */}
+            <span className="version-badge" title={`Versión ${__APP_VERSION__}`}>
+              v{__APP_VERSION__.split('.')[0]}
+            </span>
+          </div>
           <div
             className="app-subtitle"
             onClick={handleSubtitleClick}
